@@ -293,8 +293,8 @@ def run_inference(pb_path, warmup_runs=10, num_runs=50, latency_csv_path=None, p
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run frozen PB inference and benchmark latency.")
-    parser.add_argument("--graph", "-g", default="meta_graph_1.spec", help="Path to frozen pb file.")
-    parser.add_argument("--batch-size", "-bs", type=int, default=1024, help="Batch size for dynamic first dimension.")
+    parser.add_argument("--graph", "--g", default="meta_graph_1.spec", help="Path to frozen pb file.")
+    parser.add_argument("--batch-size", "--bs", type=int, default=1024, help="Batch size for dynamic first dimension.")
     parser.add_argument('--platform', type=str, choices=['cpu', 'cuda', 'musa'],
                         default='cpu', help='Target platform for inference.')
     parser.add_argument("--warmup-runs", type=int, default=10, help="Warmup iteration count.")

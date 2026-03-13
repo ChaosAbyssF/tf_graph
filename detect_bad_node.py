@@ -146,6 +146,104 @@ def find_output_tensors(graph):
                 outputs.append(out)
     return outputs
 
+def contains_nan_inf(x):
+
+    if not isinstance(x, np.ndarray):
+        return False
+
+    if not np.issubdtype(x.dtype, np.floating):
+        return False
+
+    return np.any(np.isnan(x)) or np.any(np.isinf(x))
+def detect_first_nan_inf_node(sess, graph, feed_dict, output_dir):
+    import numpy as np
+    import json
+
+    print("\n===== Scanning graph for NaN / Inf =====")
+
+    for op in graph.get_operations():
+
+        if not op.outputs:
+            continue
+
+        try:
+            outputs = sess.run(op.outputs, feed_dict=feed_dict)
+        except Exception:
+            continue
+
+        for idx, out in enumerate(outputs):
+
+            if not isinstance(out, np.ndarray):
+                continue
+
+            if contains_nan_inf(out):
+
+                print("\n!!!! Found NaN/Inf in node !!!!")
+                print("Node name:", op.name)
+                print("Op type:", op.type)
+
+                input_info = []
+
+                all_inputs_valid = True
+
+                for tensor in op.inputs:
+
+                    try:
+                        val = sess.run(tensor, feed_dict=feed_dict)
+                    except Exception:
+                        val = None
+
+                    info = {
+                            "name": tensor.name,
+                            "dtype": str(tensor.dtype),
+                            "shape": str(tensor.shape),
+                            "source_op_name": tensor.op.name,
+                            "source_op_type": tensor.op.type,
+                            "sample": None
+                        }
+
+                    if isinstance(val, np.ndarray):
+                        info["sample"] = val.flat[:6].tolist()
+
+                        if contains_nan_inf(val):
+                            all_inputs_valid = False
+
+                    input_info.append(info)
+
+                if not all_inputs_valid:
+                    print("Input already contains NaN/Inf, skipping...")
+                    continue
+
+                output_info = {
+                        "name": op.outputs[idx].name,
+                        "dtype": str(op.outputs[idx].dtype),
+                        "shape": str(op.outputs[idx].shape),
+                        "op_name": op.name,
+                        "op_type": op.type,
+                        "sample": out.flat[:6].tolist()
+                    }
+
+                record = {
+                    "node_name": op.name,
+                    "op_type": op.type,
+                    "inputs": input_info,
+                    "output": output_info
+                }
+
+                os.makedirs(output_dir, exist_ok=True)
+
+                save_path = os.path.join(output_dir, "first_nan_inf_node.json")
+
+                with open(save_path, "w") as f:
+                    json.dump(record, f, indent=2)
+
+                print("Saved debug info to:", save_path)
+
+                return record
+
+    print("No NaN/Inf node found.")
+    return None
+
 def run_inference(pb_path, platform='cpu'):
     graph_def = load_graph_def(pb_path)
     graph = import_graph(graph_def)
@@ -157,7 +255,7 @@ def run_inference(pb_path, platform='cpu'):
     config.allow_soft_placement = True
 
     # 打印设备日志（可选：运行代码时可以看到操作到底被分配到了哪里，方便调试）
-    config.log_device_placement = False
+    config.log_device_placement = True
 
     if platform.lower() == 'cpu':
         # 正确设置CPU模式，不使用GPU
@@ -183,10 +281,34 @@ def run_inference(pb_path, platform='cpu'):
     placeholders = scan_placeholders(graph)
     outputs = find_output_tensors(graph)
 
+    print("\n===== Placeholders =====")
+    for ph in placeholders:
+        print(f"{ph['name']} | dtype={ph['dtype']} | shape={ph['shape']}")
+
+    print("\n===== Output Tensors =====")
+    for out in outputs:
+        print(f"{out.name} | dtype={out.dtype} | shape={out.shape}")
+
     feed_dict = build_feed_dict(graph, placeholders)
-    
+
     with tf.compat.v1.Session(graph=graph, config=config) as sess:
+
+        print("\n===== Detecting NaN / Inf nodes =====")
+
+        detect_first_nan_inf_node(
+            sess,
+            graph,
+            feed_dict,
+            output_dir=output_path
+        )
+
+        print("\n===== Inference Run =====")
         output_values = sess.run(outputs, feed_dict=feed_dict)
+
+        print("\n===== Inference Done =====")
+    
+    for out, val in zip(outputs, output_values):
+        print(f"{out.name} -> output shape: {val.shape} | sample={val.flat[:6] if val.size > 0 else []}")
 
     return output_values
 
@@ -194,7 +316,7 @@ def run_inference(pb_path, platform='cpu'):
 def parse_args():
     parser = argparse.ArgumentParser(description="Run frozen PB inference and benchmark latency.")
     parser.add_argument("--graph", "--g", default="meta_graph_1.spec", help="Path to frozen pb file.")
-    parser.add_argument("--batch-size", "--bs", type=int, default=1024, help="Batch size for dynamic first dimension.")
+    parser.add_argument("--batch-size", "--bs", type=int, default=1, help="Batch size for dynamic first dimension.")
     parser.add_argument('--platform', type=str, choices=['cpu', 'cuda', 'musa'],
                         default='cpu', help='Target platform for inference.')
     parser.add_argument(
@@ -212,7 +334,7 @@ if __name__ == "__main__":
     for arg, value in vars(args).items():
         print(f"  {arg}: {value}")
     spec_path = args.graph
-    pb_path = os.path.splitext(args.graph)[0] + "_frozen.pb"
+    pb_path = os.path.splitext(args.graph)[0] + "_frozen_fixed.pb"
     
     batch_size = args.batch_size
     model_name = os.path.splitext(spec_path)[0]
@@ -233,5 +355,6 @@ if __name__ == "__main__":
     else:
         print("Converting spec to frozen graph by: python convert_spec_to_frozen_graph_def.py")
         
+
 
 
