@@ -1,0 +1,21 @@
+2026-03-16 15:23:42.496770: I tensorflow/core/platform/cpu_feature_guard.cc:142] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 AVX512F FMA
+To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2026-03-16 15:23:42.637523: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1510] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 46788 MB memory:  -> device: 0, name: NVIDIA L20, pci bus id: 0000:6b:01.0, compute capability: 8.9
+2026-03-16 15:24:14.795261: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1510] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 46788 MB memory:  -> device: 0, name: NVIDIA L20, pci bus id: 0000:6b:01.0, compute capability: 8.9
+2026-03-16 15:24:29.106250: I tensorflow/stream_executor/cuda/cuda_blas.cc:1760] TensorFloat-32 will be used for the matrix multiplication. This will only be logged once.
+2026-03-16 15:24:29.144714: I tensorflow/stream_executor/cuda/cuda_dnn.cc:369] Loaded cuDNN version 8600
+Arguments:
+  graph: ./meta_graph_3.spec
+  batch_size: 1024
+  platform: cuda
+  output: profile_cuda/meta_graph_3_20260316_152332
+Using existing output path: profile_cuda/meta_graph_3_20260316_152332
+Using existing frozen graph: ./meta_graph_3_frozen.pb
+Configured for CUDA execution. Available devices will be used automatically.
+TF Version: 2.6.1
+GPU Devices: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')]
+Collecting data...
+Generating '/tmp/nsys-report-8ba8.qdstrm'
+[1/1] [0%                          ] nsys_profile.nsys-rep[1/1] [0%                          ] nsys_profile.nsys-rep[1/1] [5%                          ] nsys_profile.nsys-rep[1/1] [6%                          ] nsys_profile.nsys-rep[1/1] [7%                          ] nsys_profile.nsys-rep[1/1] [12%                         ] nsys_profile.nsys-rep[1/1] [==21%                       ] nsys_profile.nsys-rep[1/1] [=====31%                    ] nsys_profile.nsys-rep[1/1] [=========43%                ] nsys_profile.nsys-rep[1/1] [===========50%              ] nsys_profile.nsys-rep[1/1] [========================100%] nsys_profile.nsys-rep[1/1] [========================100%] nsys_profile.nsys-rep
+Generated:
+	/root/autodl-tmp/tf_graph/profile_cuda/meta_graph_3_20260316_152332/nsys_profile.nsys-rep

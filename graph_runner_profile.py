@@ -69,11 +69,10 @@ def scan_placeholders(graph):
     return placeholders
 
 
+# 固定随机数种子
+np_state = np.random.RandomState(42)
 def generate_random_input(name, dtype, shape):
     """根据 dtype + shape 自动造数据"""
-    
-    # 固定随机数种子
-    np_state = np.random.RandomState(42)
     
     if dtype == tf.float32:
         data = np_state.rand(*shape)
