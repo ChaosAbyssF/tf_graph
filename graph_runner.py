@@ -184,7 +184,7 @@ def run_inference(pb_path, warmup_runs=10, num_runs=50, latency_csv_path=None, p
     config.allow_soft_placement = True
 
     # 打印设备日志（可选：运行代码时可以看到操作到底被分配到了哪里，方便调试）
-    config.log_device_placement = True
+    config.log_device_placement = False
 
     if platform.lower() == 'cpu':
         # 正确设置CPU模式，不使用GPU
@@ -220,41 +220,6 @@ def run_inference(pb_path, warmup_runs=10, num_runs=50, latency_csv_path=None, p
 
     feed_dict = build_feed_dict(graph, placeholders)
     
-     # ================= 调试打印部分 (修正版) =================
-    print("\n===== Verifying Feed Dict Shapes =====")
-    for tensor, data in feed_dict.items():
-        # 1. 安全获取 Graph 中的形状
-        try:
-            # 尝试转换为列表
-            graph_shape = tensor.shape.as_list()
-        except ValueError:
-            # 如果形状完全未知 (None)，捕获异常并标记
-            graph_shape = "Unknown (None)"
-        
-        # 2. 安全获取实际数据的形状
-        import numpy as np
-        if not isinstance(data, np.ndarray):
-            # 如果是标量 (float/int)，转为 numpy 数组以便统一处理
-            data = np.array(data)
-            feed_dict[tensor] = data  # 更新字典，防止 sess.run 报错
-        
-        actual_shape = list(data.shape)
-        dtype_info = data.dtype
-
-        print(f"Input: {tensor.name}")
-        print(f"  -> Graph Shape: {graph_shape}")
-        print(f"  -> Actual Data Shape: {actual_shape} (dtype: {dtype_info})")
-        
-        # 只有当 Graph 形状已知时，才进行维度检查
-        if graph_shape != "Unknown (None)":
-            if None not in graph_shape:
-                if len(graph_shape) != len(actual_shape):
-                    print(f"  [WARNING] Dimension count mismatch! Graph expects {len(graph_shape)}D, got {len(actual_shape)}D")
-            else:
-                # 形状中包含 None (动态维)，只打印提示
-                print(f"  [INFO] Graph shape contains dynamic dimensions (None). Matching based on known dims.")
-
-
     with tf.compat.v1.Session(graph=graph, config=config) as sess:
         print("\n===== Warmup Run =====")
         for _ in range(warmup_runs):
@@ -297,8 +262,8 @@ def parse_args():
     parser.add_argument("--batch-size", "--bs", type=int, default=1024, help="Batch size for dynamic first dimension.")
     parser.add_argument('--platform', type=str, choices=['cpu', 'cuda', 'musa'],
                         default='cpu', help='Target platform for inference.')
-    parser.add_argument("--warmup-runs", type=int, default=10, help="Warmup iteration count.")
-    parser.add_argument("--num-runs", type=int, default=50, help="Measured iteration count.")
+    parser.add_argument("--warmup-runs", type=int, default=3, help="Warmup iteration count.")
+    parser.add_argument("--num-runs", type=int, default=10, help="Measured iteration count.")
     parser.add_argument(
         "--latency-csv",
         default="latency_stats.csv",
@@ -313,6 +278,7 @@ def parse_args():
 
 
 if __name__ == "__main__":
+    from datetime import datetime
     args = parse_args()
     # print args
     print("Arguments:")
@@ -332,8 +298,11 @@ if __name__ == "__main__":
     else:
         print("Creating output path:", output_path)
         os.makedirs(output_path)
-        
-    latency_csv_path = os.path.join(output_path, "{}_batch_{}{}".format(csv_name, batch_size, ext))
+    
+    # 获取当前精确到秒的时间戳
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    latency_csv_path = os.path.join(output_path, "{}_batch_{}_{}{}".format(csv_name, batch_size, timestamp, ext))
     if os.path.exists(spec_path) and os.path.exists(pb_path):
         print("Using existing frozen graph:", pb_path)
         run_inference(
