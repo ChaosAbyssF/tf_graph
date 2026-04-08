@@ -173,6 +173,24 @@ def save_latency_to_csv(csv_path, latencies_ms, warmup_runs, num_runs):
     print(f"\n===== Latency CSV Saved =====\n{csv_path}")
 
 
+def parse_batch_sizes(batch_size_arg):
+    values = [item.strip() for item in str(batch_size_arg).split(",")]
+    batch_sizes = []
+    for item in values:
+        if not item:
+            continue
+        try:
+            batch_size = int(item)
+        except ValueError as exc:
+            raise ValueError(f"Invalid batch size '{item}' in --bs '{batch_size_arg}'") from exc
+        if batch_size <= 0:
+            raise ValueError(f"Batch size must be positive, got {batch_size}")
+        batch_sizes.append(batch_size)
+    if not batch_sizes:
+        raise ValueError(f"No valid batch size found in --bs '{batch_size_arg}'")
+    return batch_sizes
+
+
 def run_inference(pb_path, warmup_runs=10, num_runs=50, latency_csv_path=None, platform='cpu'):
     graph_def = load_graph_def(pb_path)
     graph = import_graph(graph_def)
@@ -197,6 +215,7 @@ def run_inference(pb_path, warmup_runs=10, num_runs=50, latency_csv_path=None, p
         if platform.lower() == 'musa':
             # MUSA 插件加载后，框架应能识别 MUSA 设备
             load_musa_plugin()
+            print(tf.config.list_physical_devices())
         else:
             cuda_path = "/usr/local/cuda" 
             if os.path.exists(cuda_path):
@@ -259,7 +278,13 @@ def run_inference(pb_path, warmup_runs=10, num_runs=50, latency_csv_path=None, p
 def parse_args():
     parser = argparse.ArgumentParser(description="Run frozen PB inference and benchmark latency.")
     parser.add_argument("--graph", "--g", default="meta_graph_1.spec", help="Path to frozen pb file.")
-    parser.add_argument("--batch-size", "--bs", type=int, default=1024, help="Batch size for dynamic first dimension.")
+    parser.add_argument(
+        "--batch-size",
+        "--bs",
+        type=str,
+        default="1024",
+        help="Batch size for dynamic first dimension. Supports single value or comma list, e.g. '1024' or '1,2,4,8'.",
+    )
     parser.add_argument('--platform', type=str, choices=['cpu', 'cuda', 'musa'],
                         default='cpu', help='Target platform for inference.')
     parser.add_argument("--warmup-runs", type=int, default=3, help="Warmup iteration count.")
@@ -287,7 +312,7 @@ if __name__ == "__main__":
     spec_path = args.graph
     pb_path = os.path.splitext(args.graph)[0] + "_frozen.pb"
     
-    batch_size = args.batch_size
+    batch_sizes = parse_batch_sizes(args.batch_size)
     csv_name, ext = os.path.splitext(args.latency_csv)
     
     model_name = os.path.splitext(spec_path)[0]
@@ -302,18 +327,22 @@ if __name__ == "__main__":
     # 获取当前精确到秒的时间戳
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    latency_csv_path = os.path.join(output_path, "{}_batch_{}_{}{}".format(csv_name, batch_size, timestamp, ext))
     if os.path.exists(spec_path) and os.path.exists(pb_path):
         print("Using existing frozen graph:", pb_path)
-        run_inference(
-        pb_path=pb_path,
-        warmup_runs=args.warmup_runs,
-        num_runs=args.num_runs,
-        latency_csv_path=latency_csv_path,
-        platform=args.platform,
-        )
+        for batch_size in batch_sizes:
+            print(f"\n===== Running batch_size={batch_size} =====")
+            latency_csv_path = os.path.join(
+                output_path,
+                "{}_batch_{}_{}{}".format(csv_name, batch_size, timestamp, ext),
+            )
+            run_inference(
+                pb_path=pb_path,
+                warmup_runs=args.warmup_runs,
+                num_runs=args.num_runs,
+                latency_csv_path=latency_csv_path,
+                platform=args.platform,
+            )
     else:
         print("Converting spec to frozen graph by: python convert_spec_to_frozen_graph_def.py")
         
-
 
